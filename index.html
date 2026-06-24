@@ -155,6 +155,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a
       <button class="btn" onclick="openImport()">⬇ Importar progreso</button>
       <button class="btn" onclick="exportMissing()">📋 Lista de faltantes</button>
       <button class="btn" onclick="exportRepeats()">📋 Lista de repetidas</button>
+      <button class="btn" onclick="exportFiguritasFormat()">📤 Exportar formato Figuritas App</button>
       <button class="btn" onclick="confirmClearRepeat()" style="border-color:#BA7517;color:#BA7517">🔄 Limpiar repetidas</button>
       <button class="btn danger" onclick="confirmReset()">↺ Reiniciar</button>
     </div>
@@ -216,6 +217,21 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a
       </div>
     </div>
     <div class="checker-results" id="loader-results"></div>
+  </div>
+
+  <div class="checker-wrap">
+    <div class="checker-title">🤝 ¿Qué puedo darle? — Intercambio con Figuritas App</div>
+    <div style="font-size:12px;color:#888;margin-bottom:8px">Pegá la lista exportada desde Figuritas App de tu amigo. Tu app cruza sus faltantes contra tus repetidas y te dice exactamente qué podés darle.</div>
+    <div class="checker-input-row">
+      <div class="checker-textarea-wrap">
+        <textarea class="checker-textarea" id="trade-input" placeholder="Pegá acá el texto exportado desde Figuritas App de tu amigo&#10;(incluye Me faltan, Repetidas, etc.)" oninput="toggleClear('trade-input','trade-clear','trade-results')"></textarea>
+        <button id="trade-clear" class="textarea-clear" onclick="clearTextarea('trade-input','trade-clear','trade-results')" title="Limpiar">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+        <button class="checker-btn" onclick="runTrade()">🤝 Calcular intercambio</button>
+      </div>
+    </div>
+    <div class="checker-results" id="trade-results"></div>
   </div>
 
   <div class="checker-wrap">
@@ -1643,6 +1659,58 @@ function doImport(){
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
+function exportFiguritasFormat(){
+  try{
+  const lines = [
+    'Figuritas App - Lista',
+    'Usa Méx Can 26',
+    'Me faltan',
+  ];
+
+  getTeams().forEach(team=>{
+    if(team==='General') return; // saltar General
+    const teamStickers = stickers.filter(s=>s.team===team);
+    if(!teamStickers.length) return;
+    const flag = TEAM_FLAGS[team]||'🌍';
+    const prefixMatch = teamStickers[0].code.match(/^[A-Z]+/);
+    if(!prefixMatch) return;
+    const prefix = prefixMatch[0];
+
+    const missing = teamStickers.filter(s=>(state[s.code]||0)===0);
+    if(missing.length){
+      const nums = missing.map(s=>parseInt(s.code.replace(/^[A-Z]+/,''))).sort((a,b)=>a-b);
+      lines.push(`${prefix} ${flag}: ${nums.join(', ')}`);
+    }
+  });
+
+  lines.push('');
+  lines.push('Repetidas');
+
+  getTeams().forEach(team=>{
+    if(team==='General') return;
+    const teamStickers = stickers.filter(s=>s.team===team);
+    if(!teamStickers.length) return;
+    const flag = TEAM_FLAGS[team]||'🌍';
+    const prefixMatch = teamStickers[0].code.match(/^[A-Z]+/);
+    if(!prefixMatch) return;
+    const prefix = prefixMatch[0];
+
+    const reps = teamStickers.filter(s=>(state[s.code]||0)>=2);
+    if(reps.length){
+      const nums = reps.map(s=>parseInt(s.code.replace(/^[A-Z]+/,''))).sort((a,b)=>a-b);
+      lines.push(`${prefix} ${flag}: ${nums.join(', ')}`);
+    }
+  });
+
+  const blob = new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mi_album_formato_figuritas.txt';
+  a.click();
+  showToast('Lista exportada en formato Figuritas App');
+  }catch(e){showToast('Error: '+e.message);console.error(e);}
+}
+
 function exportRepeats(){
   const reps=stickers.filter(s=>(state[s.code]||0)>=2);
   if(!reps.length){showToast('No tenés figuritas repetidas');return;}
@@ -1999,6 +2067,177 @@ function doClearRepeat(){
 
 function doReset(){
   state={};repeats={};saveState();closeModal('modal-reset');updateStats();renderAll();showToast('Progreso reiniciado');
+}
+
+// Mapa de nombres en español/inglés → código de equipo
+const TEAM_NAME_MAP = {
+  'mexico':'MEX','méxico':'MEX','mex':'MEX',
+  'sudafrica':'RSA','sudáfrica':'RSA','south africa':'RSA','rsa':'RSA',
+  'corea del sur':'KOR','corea':'KOR','korea':'KOR','kor':'KOR',
+  'chequia':'CZE','república checa':'CZE','czech':'CZE','cze':'CZE',
+  'canada':'CAN','canadá':'CAN','can':'CAN',
+  'bosnia':'BIH','bosnia y herzegovina':'BIH','bih':'BIH',
+  'qatar':'QAT','catar':'QAT','qat':'QAT',
+  'suiza':'SUI','switzerland':'SUI','sui':'SUI',
+  'brasil':'BRA','brazil':'BRA','bra':'BRA',
+  'marruecos':'MAR','morocco':'MAR','mar':'MAR',
+  'haiti':'HAI','haití':'HAI','hai':'HAI',
+  'escocia':'SCO','scotland':'SCO','sco':'SCO',
+  'estados unidos':'USA','ee.uu.':'USA','usa':'USA','eua':'USA',
+  'paraguay':'PAR','par':'PAR',
+  'australia':'AUS','aus':'AUS',
+  'turquia':'TUR','turquía':'TUR','turkey':'TUR','tur':'TUR','türkiye':'TUR',
+  'alemania':'GER','germany':'GER','ger':'GER',
+  'curazao':'CUW','curacao':'CUW','cuw':'CUW',
+  'costa de marfil':'CIV','ivory coast':'CIV','civ':'CIV',
+  'ecuador':'ECU','ecu':'ECU',
+  'paises bajos':'NED','países bajos':'NED','holanda':'NED','netherlands':'NED','ned':'NED',
+  'japon':'JPN','japón':'JPN','japan':'JPN','jpn':'JPN',
+  'suecia':'SWE','sweden':'SWE','swe':'SWE',
+  'tunez':'TUN','túnez':'TUN','tunisia':'TUN','tun':'TUN',
+  'belgica':'BEL','bélgica':'BEL','belgium':'BEL','bel':'BEL',
+  'egipto':'EGY','egypt':'EGY','egy':'EGY',
+  'iran':'IRN','irán':'IRN','irn':'IRN',
+  'nueva zelanda':'NZL','new zealand':'NZL','nzl':'NZL',
+  'españa':'ESP','espana':'ESP','spain':'ESP','esp':'ESP',
+  'cabo verde':'CPV','cape verde':'CPV','cpv':'CPV',
+  'arabia saudita':'KSA','arabia saudi':'KSA','saudi arabia':'KSA','ksa':'KSA',
+  'uruguay':'URU','uru':'URU',
+  'francia':'FRA','france':'FRA','fra':'FRA',
+  'senegal':'SEN','sen':'SEN',
+  'irak':'IRQ','iraq':'IRQ','irq':'IRQ',
+  'noruega':'NOR','norway':'NOR','nor':'NOR',
+  'argentina':'ARG','arg':'ARG',
+  'argelia':'ALG','algeria':'ALG','alg':'ALG',
+  'austria':'AUT','aut':'AUT',
+  'jordania':'JOR','jordan':'JOR','jor':'JOR',
+  'portugal':'POR','por':'POR',
+  'congo dr':'COD','congo':'COD','cod':'COD','república democrática del congo':'COD',
+  'uzbekistan':'UZB','uzbekistán':'UZB','uzb':'UZB',
+  'colombia':'COL','col':'COL',
+  'inglaterra':'ENG','england':'ENG','eng':'ENG',
+  'croacia':'CRO','croatia':'CRO','cro':'CRO',
+  'ghana':'GHA','gha':'GHA',
+  'panama':'PAN','panamá':'PAN','pan':'PAN',
+  'fwc':'FWC',
+};
+
+function resolveTeamCode(raw){
+  // Primero intentar código directo (3 letras mayúsculas)
+  const direct = raw.toUpperCase().match(/^([A-Z]{2,4})$/);
+  if(direct && VALID_TEAMS.has(direct[1])) return direct[1];
+  // Buscar en el mapa de nombres (normalizar: minúsculas, sin tildes básicas)
+  const normalized = raw.toLowerCase()
+    .replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i')
+    .replace(/ó/g,'o').replace(/ú/g,'u').replace(/ü/g,'u')
+    .trim();
+  return TEAM_NAME_MAP[normalized] || null;
+}
+
+function parseFiguritasExport(raw){
+  const missing = new Set();
+  const theirRepeats = new Map();
+  let section = null;
+
+  const lines = raw.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  for(const line of lines){
+    // Detectar sección
+    if(/me faltan|faltan/i.test(line) && !line.match(/^[A-Z]{2,4}[\s\d:,]/)){ section='missing'; continue; }
+    if(/repetidas|repeti/i.test(line) && !line.match(/^[A-Z]{2,4}[\s\d:,]/)){ section='repeats'; continue; }
+    if(!section) continue;
+    if(/figuritas app|descarga|http|usa méx|usa mex/i.test(line)) continue;
+
+    // Limpiar emojis del inicio de línea
+    const lineClean = line.replace(/^[^\x00-\x7F\s]+\s*/g,'').replace(/^[\s]+/,'');
+
+    // Extraer nombre del equipo: todo antes del primer dígito, ":", o emoji
+    const nameMatch = lineClean.match(/^([A-Za-záéíóúüñÁÉÍÓÚÜÑ\s\.]+?)(?:\s*[^\x00-\x7F]|\s*:\s*|\s+\d)/);
+    const namePart = nameMatch ? nameMatch[1].trim() : lineClean.match(/^([A-Za-z]+)/)?.[1] || '';
+    const team = resolveTeamCode(namePart);
+    if(!team) continue;
+
+    // Reemplazar "y" como separador y extraer números
+    const numsRaw = lineClean.replace(/\by\b/gi,' ').match(/\d+/g);
+    if(!numsRaw){
+      // Caso pegado tipo FWC11
+      const pegado = lineClean.match(/[A-Za-z]+(\d+)$/);
+      if(pegado){ const num=parseInt(pegado[1]); if(num>=1&&num<=20){ const code=team+num; if(section==='missing') missing.add(code); else theirRepeats.set(code,(theirRepeats.get(code)||0)+1); } }
+      continue;
+    }
+
+    const numCount = {};
+    numsRaw.forEach(n=>{ const num=parseInt(n); if(num>=1&&num<=20) numCount[num]=(numCount[num]||0)+1; });
+    Object.entries(numCount).forEach(([num,count])=>{
+      const code = team+parseInt(num);
+      if(section==='missing') missing.add(code);
+      else theirRepeats.set(code,(theirRepeats.get(code)||0)+count);
+    });
+  }
+  return { missing, theirRepeats };
+}
+
+function runTrade(){
+  const raw = document.getElementById('trade-input').value;
+  if(!raw.trim()){ showToast('Pegá la lista de tu amigo primero'); return; }
+
+  const { missing, theirRepeats } = parseFiguritasExport(raw);
+  if(!missing.size && !theirRepeats.size){
+    showToast('No se pudo leer la lista — revisá el formato');
+    return;
+  }
+
+  const res = document.getElementById('trade-results');
+  res.innerHTML = '';
+
+  // Lo que YO le puedo dar: mis repetidas que a él le faltan
+  const iCanGive = stickers.filter(s=>(state[s.code]||0)>=2 && missing.has(s.code));
+  // Lo que ÉL me puede dar: sus repetidas que a mí me faltan
+  const theyCanGive = stickers.filter(s=>(state[s.code]||0)===0 && theirRepeats.has(s.code));
+
+  // Yo le puedo dar
+  if(iCanGive.length){
+    const g = document.createElement('div');
+    g.className = 'checker-group';
+    const totalCopies = iCanGive.reduce((sum,s)=>sum+(repeats[s.code]||1),0);
+    g.innerHTML = `<div class="checker-group-title need" style="color:#1D9E75">✅ Yo le puedo dar (${iCanGive.length} figuritas, ${totalCopies} copias)</div>
+      <div class="checker-chips">${iCanGive.map(s=>{
+        const r=repeats[s.code]||1;
+        return `<span class="chip need" title="${s.name} — ${s.team}">${s.code}${r>1?` x${r}`:''}</span>`;
+      }).join('')}</div>`;
+    res.appendChild(g);
+  } else {
+    const g = document.createElement('div');
+    g.className = 'checker-group';
+    g.innerHTML = `<div class="checker-group-title have">😕 No tengo nada de lo que le falta</div>`;
+    res.appendChild(g);
+  }
+
+  // Él me puede dar
+  if(theyCanGive.length){
+    const g = document.createElement('div');
+    g.className = 'checker-group';
+    g.innerHTML = `<div class="checker-group-title rep" style="color:#BA7517">🎯 Él me puede dar (${theyCanGive.length} figuritas que me faltan)</div>
+      <div class="checker-chips">${theyCanGive.map(s=>{
+        const qty = theirRepeats.get(s.code)||1;
+        return `<span class="chip rep" title="${s.name} — ${s.team}">${s.code}${qty>1?` x${qty}`:''}</span>`;
+      }).join('')}</div>`;
+    res.appendChild(g);
+  } else {
+    const g = document.createElement('div');
+    g.className = 'checker-group';
+    g.innerHTML = `<div class="checker-group-title have">😕 No tiene nada de lo que me falta</div>`;
+    res.appendChild(g);
+  }
+
+  // Resumen
+  const sum = document.createElement('div');
+  sum.className = 'checker-summary';
+  const totalDoy = iCanGive.reduce((s,x)=>s+(repeats[x.code]||1),0);
+  const totalRecibo = theyCanGive.reduce((s,x)=>s+(theirRepeats.get(x.code)||1),0);
+  sum.textContent = `Podés dar ${iCanGive.length} figuritas (${totalDoy} copias) · Podés recibir ${theyCanGive.length} figuritas (${totalRecibo} copias)`;
+  res.appendChild(sum);
+
+  res.classList.add('show');
 }
 
 function renderRemoverResults(codes){
